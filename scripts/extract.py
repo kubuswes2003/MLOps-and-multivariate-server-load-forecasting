@@ -1,9 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Thu Nov 19 15:13:53 2026
-
-@author: CAROLINA
-"""
 from pathlib import Path
 import pandas as pd
 
@@ -14,7 +8,7 @@ COLS = ["machine_id", "time_stamp", "cpu", "mem", "mem_gps",
         "mkpi", "net_in", "net_out", "disk_io"]
 CHUNK = 2_000_000
 
-# Pass 1: rows per machine (reads only the first column, so it's faster)
+# Pass 1: count rows per machine (reads only the first column)
 counts = pd.Series(dtype="int64")
 for i, chunk in enumerate(pd.read_csv(RAW, header=None, usecols=[0],
                                       names=["machine_id"], chunksize=CHUNK)):
@@ -30,7 +24,8 @@ print("Selected machine:", MACHINE)
 
 # Pass 2: keep only that machine
 parts = []
-for i, chunk in enumerate(pd.read_csv(RAW, header=None, names=COLS, chunksize=CHUNK)):
+for i, chunk in enumerate(pd.read_csv(RAW, header=None, names=COLS,
+                                      chunksize=CHUNK)):
     parts.append(chunk[chunk.machine_id == MACHINE])
     if i % 10 == 0:
         print("pass 2, chunk", i, flush=True)
