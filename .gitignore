@@ -1,0 +1,26 @@
+# Data — each teammate downloads it locally (see README)
+data/*
+!data/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Tooling
+.pytest_cache/
+.ruff_cache/
+
+# OS / editors
+.DS_Store
+.vscode/
+.idea/
+
+# Course handout — not ours to redistribute
+TP_IA_Master_*.pdf
