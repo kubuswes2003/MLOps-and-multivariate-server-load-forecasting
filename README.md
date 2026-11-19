@@ -72,3 +72,5 @@ All settings live in `src/server_load/config.py`; random seed = 42.
 - Each person owns their notebook; shared logic goes in `src/` — tell the other
   before changing a shared function's signature.
 - Fit scalers/imputers/models on **training data only**; never select a model on the test set.
+
+Course: Artificial Intelligence – Master, Université d'Évry (TP1).
