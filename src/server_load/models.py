@@ -5,7 +5,11 @@ so that it is fitted on the training data only — no leakage.
 """
 
 import pandas as pd
+from sklearn.ensemble import HistGradientBoostingRegressor
+from sklearn.impute import SimpleImputer
+from sklearn.linear_model import Ridge
 from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 
 
 def persistence_forecast(current_target: pd.Series) -> pd.Series:
@@ -17,8 +21,7 @@ def persistence_forecast(current_target: pd.Series) -> pd.Series:
     Returns:
         Predictions for t + horizon.
     """
-    # TODO(Q5)
-    raise NotImplementedError("Q5: persistence baseline")
+    return current_target.rename("persistence")
 
 
 def build_ridge(alpha: float) -> Pipeline:
@@ -30,8 +33,13 @@ def build_ridge(alpha: float) -> Pipeline:
     Returns:
         Unfitted Pipeline.
     """
-    # TODO(Q5): also derive the Ridge objective in the report.
-    raise NotImplementedError("Q5: Ridge pipeline")
+    return Pipeline(
+        [
+            ("impute", SimpleImputer(strategy="median")),
+            ("scale", StandardScaler()),
+            ("ridge", Ridge(alpha=alpha)),
+        ]
+    )
 
 
 def build_gradient_boosting(random_seed: int, **params: object) -> Pipeline:
@@ -44,5 +52,6 @@ def build_gradient_boosting(random_seed: int, **params: object) -> Pipeline:
     Returns:
         Unfitted Pipeline.
     """
-    # TODO(Q7/Q8): HistGradientBoosting exposes per-iteration scores for learning curves.
-    raise NotImplementedError("Q7: nonlinear model")
+    return Pipeline(
+        [("gbm", HistGradientBoostingRegressor(random_state=random_seed, **params))]
+    )

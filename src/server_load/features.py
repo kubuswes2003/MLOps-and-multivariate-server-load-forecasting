@@ -21,8 +21,7 @@ def make_lag_features(df: pd.DataFrame, columns: list[str], lags: tuple[int, ...
         for k in lags:
             out[f"{col}_lag{k}"] = df[col].shift(k)
     return out
-    # TODO(Q4): build the lag columns with df[col].shift(k).
-    raise NotImplementedError("Q4: implement lag features")
+
 
 
 def make_target(df: pd.DataFrame, target: str, horizon_steps: int) -> pd.Series:
@@ -37,5 +36,4 @@ def make_target(df: pd.DataFrame, target: str, horizon_steps: int) -> pd.Series:
         Series aligned with df's index, named ``f"{target}_t+{horizon_steps}"``.
     """
     return df[target].shift(-horizon_steps).rename(f"{target}_t+{horizon_steps}")
-    # TODO(Q1/Q4): shift the target the other way (into the future).
-    raise NotImplementedError("Q1/Q4: implement forecasting target")
+
