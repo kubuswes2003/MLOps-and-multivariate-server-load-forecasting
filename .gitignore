@@ -24,3 +24,12 @@ venv/
 
 # Course handout — not ours to redistribute
 TP_IA_Master_*.pdf
+
+# LaTeX build files (keep report.tex and the final PDF only)
+report/*.aux
+report/*.log
+report/*.out
+report/*.toc
+report/*.synctex.gz
+report/*.fls
+report/*.fdb_latexmk

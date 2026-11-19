@@ -1,0 +1,278 @@
+% =============================================================================
+% TP1 – MLOps and multivariate server-load forecasting
+% Report skeleton. Max 5 pages incl. figures and tables.
+% Red \todo{...} = still to fill in. Grey [Qx] tags map text to the assignment.
+% Compile: pdflatex report.tex (or upload report.tex + figures/ to Overleaf).
+% =============================================================================
+\documentclass[10pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=2cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{xcolor}
+\usepackage[font=small,labelfont=bf]{caption}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+
+\graphicspath{{../figures/}{figures/}}
+\setlist{nosep,leftmargin=*}
+\setlength{\parskip}{3pt}
+
+% --- helpers -----------------------------------------------------------------
+\newcommand{\todo}[1]{\textcolor{red}{\textbf{TODO:} #1}}
+\newcommand{\q}[1]{\textcolor{gray}{\small[#1]}}
+\newcommand{\code}[1]{\texttt{#1}}
+
+% \fig{file}{caption}{label}: shows the image if it exists, otherwise a placeholder box.
+\newcommand{\fig}[3]{%
+  \begin{figure}[ht]\centering
+    \IfFileExists{../figures/#1}{\includegraphics[width=0.85\linewidth]{#1}}{%
+      \IfFileExists{figures/#1}{\includegraphics[width=0.85\linewidth]{#1}}{%
+        \fbox{\parbox[c][3.2cm][c]{0.8\linewidth}{\centering\textcolor{red}{%
+          Missing figure: \code{figures/\detokenize{#1}}}}}}}
+    \caption{#2}\label{#3}
+  \end{figure}}
+
+% =============================================================================
+\title{\textbf{MLOps and Multivariate Server-Load Forecasting}\\[2pt]
+  \large Artificial Intelligence -- Master, TP1}
+\author{Carolina \todo{surname} \quad\&\quad Jakub Weso\l{}owski}
+\date{\today}
+
+\begin{document}
+\maketitle
+\vspace{-1.5em}
+
+\begin{abstract}
+\noindent We forecast the one-minute-ahead CPU utilisation of a production machine from the
+Alibaba Cluster Trace v2018 using its multivariate operational measurements, and study how the
+model behaves when the data distribution changes after deployment. We compare a persistence
+baseline, a Ridge (ARX) model and gradient-boosted trees under a strictly chronological
+validation protocol, and propose a drift indicator with an alert threshold and a deployment policy.
+\todo{one sentence with the main result, e.g.\ best model and test MAE.}
+\end{abstract}
+
+% =============================================================================
+\section{Problem formulation}\label{sec:problem}
+\q{Q1}
+Let $x_t \in \mathbb{R}^p$ collect CPU, memory, memory bandwidth, cache misses, network and disk
+measurements of one machine at time $t$. We learn a one-step-ahead forecaster
+\begin{equation}
+  \hat y_{t+1} = f\!\left(x_t, x_{t-1}, \dots, x_{t-L+1}\right), \qquad y_t = \code{cpu\_util\_percent}_t \in [0,100].
+\end{equation}
+\begin{itemize}
+  \item \textbf{Target:} CPU utilisation of machine \code{m\_1932}.
+  \item \textbf{Horizon:} one step, i.e.\ 1 minute ahead.
+  \item \textbf{Sampling:} raw measurements arrive irregularly, approximately every
+        \todo{verify: $\approx$10\,s}; they are averaged on a regular 1-minute grid.
+\end{itemize}
+\textbf{Why random shuffling is inappropriate.} Consecutive samples are strongly autocorrelated.
+A shuffled split places observations from the future in the training set, so the model is
+evaluated on points almost identical to ones it has already seen. The error estimate becomes
+optimistically biased (temporal leakage). All splits are therefore chronological.
+
+% =============================================================================
+\section{Data and exploratory analysis}\label{sec:data}
+\textbf{Source.} Alibaba Cluster Trace v2018, file \code{machine\_usage.csv}
+(about 4000 machines over 8 days)~\cite{alibaba}. Memory, bandwidth, network and disk values are
+normalised by Alibaba to $[0,100]$.
+We extract a single machine (\code{m\_1932}) with a streaming script, so the 1.7\,GB archive never
+has to be unpacked.
+
+\textbf{Cleaning} (implemented in code, identical for every run): values outside $[0,100]$
+(the documented invalid codes $-1$ and $101$) are set to missing; rows are sorted by time and
+duplicate timestamps removed; samples are averaged per minute. Gaps are \emph{not} filled at this
+stage so that they remain visible in the analysis.
+
+\textbf{Descriptive statistics.} \q{Q1}
+Table~\ref{tab:stats} summarises the variables after cleaning and resampling.
+
+\begin{table}[ht]\centering\small
+\caption{Descriptive statistics after cleaning (1-min resolution).}\label{tab:stats}
+\begin{tabular}{lrrrrrrrr}
+\toprule
+Variable & count & mean & std & min & 25\% & 50\% & 75\% & max \\
+\midrule
+\code{cpu}     & & & & & & & & \\
+\code{mem}     & & & & & & & & \\
+\code{mem\_gps}& & & & & & & & \\
+\code{mkpi}    & & & & & & & & \\
+\code{net\_in} & & & & & & & & \\
+\code{net\_out}& & & & & & & & \\
+\code{disk}    & & & & & & & & \\
+\bottomrule
+\end{tabular}
+\end{table}
+\todo{fill Table~\ref{tab:stats} from \code{df.describe().T}; report \% missing per variable.}
+
+\textbf{Temporal behaviour.} \q{Q3}
+Figure~\ref{fig:timeseries} shows all variables over the 8 days.
+\todo{periodicity (daily cycle?), saturation (CPU near 100\,\%?), missing intervals,
+abnormal regimes.}
+
+\fig{q3_timeseries.png}{Multivariate operational time series of machine \code{m\_1932}.}{fig:timeseries}
+
+\subsection*{Explanatory variables}
+\q{Q2}
+We distinguish \emph{causal} drivers (the variable produces CPU work) from \emph{predictive}
+signals (the variable co-moves with CPU without causing it). Both are legitimate inputs, because
+every input is taken at time $t$ or earlier to predict $t+1$.
+
+\begin{table}[ht]\centering\small
+\caption{Explanatory variables and their expected relation to CPU load.}\label{tab:vars}
+\begin{tabularx}{\linewidth}{l c l X}
+\toprule
+Variable & Sign & Type & Rationale \\
+\midrule
+\code{net\_in}   & $+$   & causal (leading)    & incoming requests reach the machine before the CPU processes them \\
+\code{net\_out}  & $+$   & predictive          & outgoing traffic is a consequence of completed work \\
+\code{mem}       & $+$   & mostly predictive   & co-located jobs use memory and CPU; memory stays allocated after compute ends (weak, slow) \\
+\code{mem\_gps}  & $+$   & predictive          & memory bandwidth rises because the CPU is actively streaming data \\
+\code{mkpi}      & $+$   & causal (efficiency) & cache misses stall the processor; stalled cycles still count as utilisation \\
+\code{disk}      & $\pm$ & causal, ambiguous   & I/O-heavy batch jobs also compute ($+$), but I/O waits can leave the CPU idle ($-$) \\
+lagged \code{cpu}& $+$   & autoregressive      & workloads persist over minutes; expected strongest predictor \\
+\bottomrule
+\end{tabularx}
+\end{table}
+\todo{correlation of each variable at $t$ with \code{cpu} at $t+1$; one sentence confirming or
+contradicting Table~\ref{tab:vars}. Correlation $\neq$ causation.}
+
+% =============================================================================
+\section{Features and validation protocol}\label{sec:protocol}
+\textbf{Lagged features.} \q{Q4}
+For each variable we add lags $k \in \{1, 5, 15\}$ minutes ($x_{t-k}$, past values only). The
+target is $y_{t+1}$. Increasing the lag window trades bias for variance: too few lags hide
+longer dynamics (underfitting); many lags add correlated, noisy inputs and parameters and
+remove usable rows (overfitting). \todo{optional: validation MAE vs.\ lag window.}
+
+\textbf{Chronological split.} \q{Q6}
+\begin{center}\small
+\begin{tabular}{lll}
+\toprule
+Set & Time range & Use \\
+\midrule
+Train      & \todo{e.g.\ day 0 -- day 5} & fit model parameters \\
+Validation & \todo{day 5 -- day 6}      & choose hyperparameters ($\alpha$, tree settings) \\
+Test       & \todo{day 6 -- day 8}      & evaluated \emph{once}, at the end \\
+\bottomrule
+\end{tabular}
+\end{center}
+Hyperparameters are selected on the validation set only; the test set is never used for any
+decision. Every learned transformation (median imputation, standardisation) is part of a
+scikit-learn \code{Pipeline}~\cite{sklearn} and is therefore fitted on training data only.
+\todo{number of rows dropped due to undefined lags.}
+
+% =============================================================================
+\section{Models}\label{sec:models}
+\textbf{Persistence baseline.} \q{Q5}
+$\hat y_{t+1} = y_t$. Any useful model must beat it.
+
+\textbf{Ridge (ARX).} \q{Q5}
+A linear model on standardised lagged inputs $z_t$, minimising squared error with an $L_2$ penalty:
+\begin{equation}
+  \min_{\beta_0,\beta}\ \sum_{t}\bigl(y_{t+1} - \beta_0 - z_t^{\top}\beta\bigr)^2 + \alpha\,\lVert\beta\rVert_2^2,
+  \qquad
+  \hat\beta = \bigl(Z^{\top}Z + \alpha I\bigr)^{-1} Z^{\top} y \;\text{(centred data)}.
+\end{equation}
+The penalty shrinks the weights, reduces variance and stabilises the strongly correlated lag
+features; $\alpha$ is chosen on validation (\todo{selected value}).
+
+\textbf{Gradient-boosted trees.} \q{Q7}
+\code{HistGradientBoostingRegressor}~\cite{sklearn}: an additive ensemble of shallow trees, each fitted
+to the residuals of the previous ones. CPU utilisation is bounded at 100\,\%; near saturation its
+response to more load is flat rather than linear. Trees split on thresholds and can therefore model
+plateaus, interactions and regime switches that a single linear combination cannot.
+\todo{tuned hyperparameters.}
+
+\textbf{Iterative training.} \q{Q8}
+\todo{which model (boosting per iteration or small MLP); Figure~\ref{fig:learning}; diagnosis of
+under/overfitting.}
+
+\fig{q8_learning_curves.png}{Training and validation loss during training.}{fig:learning}
+
+% =============================================================================
+\section{Results}\label{sec:results}
+\q{Q9}
+We report MAE, RMSE, $R^2$ and the normalised error
+$\mathrm{NRMSE} = \mathrm{RMSE}/\sigma_y$, where $\sigma_y$ is the standard deviation of the true
+values ($\mathrm{NRMSE} < 1$ means the model beats predicting the mean).
+
+\begin{table}[ht]\centering\small
+\caption{Model comparison on validation and test data.}\label{tab:results}
+\begin{tabular}{l cccc ccc}
+\toprule
+ & \multicolumn{4}{c}{Validation} & \multicolumn{3}{c}{Test} \\
+\cmidrule(lr){2-5}\cmidrule(lr){6-8}
+Model & MAE & RMSE & $R^2$ & NRMSE & MAE & RMSE & $R^2$ \\
+\midrule
+Persistence            & & & & & & & \\
+Ridge ($\alpha=$ \,)   & & & & & & & \\
+HistGradientBoosting   & & & & & & & \\
+\bottomrule
+\end{tabular}
+\end{table}
+\todo{does the ranking change with the metric? (RMSE penalises large errors more than MAE.)}
+
+\fig{q10_pred_vs_true_time.png}{Predicted and true CPU on the test period.}{fig:predtime}
+
+\textbf{Predicted vs.\ true.} \q{Q10}
+\todo{Figure~\ref{fig:scatter}: calibration around the identity line, dispersion, outliers,
+behaviour near 100\,\%.}
+
+\fig{q10_scatter.png}{Predicted versus true CPU on the test set (identity line dashed).}{fig:scatter}
+
+% =============================================================================
+\section{Error analysis}\label{sec:errors}
+\todo{residual distribution or residuals vs.\ time / vs.\ true value; where large errors occur
+(spikes, saturation, missing inputs); link to the observations of Section~\ref{sec:data}.}
+
+% =============================================================================
+\section{Drift and monitoring}\label{sec:drift}
+\textbf{Regime change.} \q{Q11}
+\todo{real change found, or synthetic change injected (e.g.\ workload surge on \code{net\_in}
+from day 6). Pre-change MAE: \_\_\,; post-change MAE: \_\_.}
+
+\textbf{Drift indicator.} \q{Q12}
+We monitor the rolling MAE over a window of \todo{e.g.\ 1\,h}. The alert threshold is
+$\tau = \mu + 3\sigma$ of the rolling error measured on the \emph{validation} period
+(\todo{value}). \todo{optional: input-distribution distance, e.g.\ Kolmogorov--Smirnov per feature.}
+
+\fig{q12_drift_monitoring.png}{Rolling error with alert threshold; the vertical line marks the regime change.}{fig:drift}
+
+% =============================================================================
+\section{Deployment policy}\label{sec:policy}
+\q{Q13}
+\textbf{Monitored quantities:} (1) rolling MAE versus threshold $\tau$; (2) input drift score per
+feature; (3) share of saturated CPU samples and of missing inputs.
+\begin{itemize}
+  \item \textbf{Recalibrate} (refit on a recent window, same model and hyperparameters) when the
+        error alert fires but input distributions are stable.
+  \item \textbf{Retrain} (re-tune hyperparameters, revisit features) when input drift persists.
+  \item \textbf{Reject / fall back to persistence} when the model is worse than persistence over
+        the monitoring window.
+\end{itemize}
+\todo{concrete numbers: window lengths, how long an alert must last before acting.}
+
+% =============================================================================
+\section{Reproducibility}\label{sec:repro}
+Code, configuration and instructions are in the project repository
+(\url{https://github.com/kubuswes2003/MLOps-and-multivariate-server-load-forecasting}).
+Python 3.10 with pinned requirements. All settings (machine id, resampling, lags, split, random
+seed $=42$) are in a single configuration file. The data are recreated from the official source
+with one script, and the README gives the archive checksum. \todo{confirm: fresh clone $\rightarrow$
+same figures.}
+
+% =============================================================================
+\begin{thebibliography}{9}\small
+\bibitem{alibaba} Alibaba Group, \emph{Alibaba Cluster Trace Program, cluster-trace-v2018}.
+  \url{https://github.com/alibaba/clusterdata}
+\bibitem{sklearn} F.~Pedregosa et~al., \emph{Scikit-learn: Machine Learning in Python},
+  Journal of Machine Learning Research 12, pp.~2825--2830, 2011.
+\end{thebibliography}
+
+\end{document}
