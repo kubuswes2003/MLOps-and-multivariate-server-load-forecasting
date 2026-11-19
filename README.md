@@ -1,5 +1,36 @@
 # TP1 – MLOps and multivariate server-load forecasting
 
+## 👥 Work division
+
+| Phase | **Person A – Jakub** (data & monitoring) | **Person B – Partner** (models) |
+|---|---|---|
+| **A–B** Data & EDA | Q1 descriptive stats, target/horizon/sampling · Q3 time-series plots | Q2 choose ≥5 variables + justify · Q4 lag features |
+| **C** Baselines | Q6 chronological split (`split.py`) | Q5 persistence + Ridge, derive objective (`models.py`) |
+| **D** Advanced models | Q8 learning curves | Q7 Random Forest / Gradient Boosting · Q9 comparison table (`metrics.py`) |
+| **E** Robustness | Q11 regime change · Q12 drift indicator + alert (`drift.py`) | Q10 predicted-vs-true scatter · error analysis |
+| **F** Report | **Together:** Q13 deployment policy, final report (≤ 5 pages), fresh-clone reproducibility check | |
+
+**Who owns what**
+
+| | Person A – Jakub | Person B – Partner |
+|---|---|---|
+| Notebook | `notebooks/01_eda.ipynb` | `notebooks/02_models.ipynb` |
+| Code in `src/server_load/` | `data.py`, `split.py`, `drift.py` | `features.py`, `models.py`, `metrics.py` |
+| Report sections | data, split, drift/monitoring | models, comparison, error analysis |
+
+**Shared contract:** `load_machine(CONFIG)` returns a DataFrame indexed by time
+(1-min steps) with columns `cpu, mem, mem_gps, mkpi, net_in, net_out, disk`.
+Both of us build on this; don't change it without telling the other.
+
+**Start here (partner):** follow [Setup](#setup-once-per-teammate) and
+[Get the data](#get-the-data-once-per-teammate), then open `notebooks/02_models.ipynb`
+and start with Q2 + Q4 in `features.py`.
+
+**Git routine:** `git pull` → work → `git add .` → `git commit -m "..."` → `git push`.
+Never commit anything from `data/` (it's ignored automatically).
+
+---
+
 Predict the next-step CPU usage of one Alibaba data-centre machine from its
 multivariate operational measurements, then monitor what happens when the data
 distribution changes (drift).
