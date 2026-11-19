@@ -54,17 +54,49 @@ Fill in as we go; `TODO` = still open. Owner in brackets: **[C]** Carolina, **[J
 
 ### Q2 – explanatory variables [J]
 
-| Variable | Why it should relate to CPU load |
-|---|---|
-| `net_in` | more incoming requests → more work to process |
-| `net_out` | responses / data sent out reflect completed work |
-| `mem` | large jobs occupy memory and CPU at the same time |
-| `mem_gps` | memory bandwidth rises when the CPU actively streams data |
-| `mkpi` | cache misses per 1000 instructions → CPU stalls, efficiency of the load |
-| `disk` | I/O-heavy batch jobs (co-located with online services) |
-| past `cpu` | load is persistent ("sticky"), strongest single predictor |
+**Key distinction (what the question asks):**
+- **Causal** – X *drives* CPU (requests arrive → CPU must process them).
+- **Predictive** – X *co-moves* with CPU without causing it (memory bandwidth rises *because*
+  the CPU is busy). Still a valid forecasting input, but a symptom, not a cause.
+- Analogy: in a restaurant, *customers walking in* cause kitchen work; *dirty plates coming back*
+  don't cause it, but they tell you the kitchen is busy.
 
-TODO [J]: confirm with correlation / lagged-correlation once real data is available.
+| Variable (code name) | Meaning | Expected link | Causal / predictive | Analogy |
+|---|---|---|---|---|
+| `net_in` | incoming network traffic | **+** | **Causal**, *leading* indicator (requests arrive before processing) | customers walking in |
+| `net_out` | outgoing network traffic | **+** | **Predictive** – result of CPU work | dishes leaving the kitchen |
+| `mem` (`mem_util_percent`) | share of memory occupied | **+**, weak & slow | **Mostly predictive** – co-located jobs use memory and CPU; memory stays allocated after compute stops | tables occupied (some guests linger) |
+| `mem_gps` | memory bandwidth | **+**, strong, simultaneous | **Predictive** – CPU moves data because it is busy | waiters running between kitchen and tables |
+| `mkpi` | cache misses / 1000 instructions | **+** for the same work | **Causal (efficiency)** – stalled cycles still count as busy | cook waiting for ingredients from the storeroom |
+| `disk` (`disk_io_percent`) | disk activity | **±** ambiguous | **Causal, either sign** – batch jobs read *and* compute (+); I/O waits leave CPU idle (−) | waiting for a delivery truck |
+| past `cpu` (lags) | CPU 1, 5, 15 min ago | **+**, strongest | **Predictive (autoregressive)** – workloads persist for minutes | busy at 12:00 → still busy at 12:01 |
+| *(optional)* hour of day | `(elapsed_s % 86400) / 3600` | daily cycle | **Predictive** – usage rhythms | lunch rush |
+
+Hour-of-day only if Carolina's Q3 plots show a daily cycle.
+
+**Report paragraph (draft):**
+
+> **Explanatory variables (Q2).** We forecast `cpu_util_percent` from six operational signals plus
+> its own past. *Incoming traffic* (`net_in`) is the most plausible **causal** driver: requests reach
+> the machine before the CPU processes them, so it can act as a leading indicator. *Outgoing traffic*
+> (`net_out`) and *memory bandwidth* (`mem_gps`) are mainly **consequences** of CPU activity –
+> predictive but not causal. *Memory utilisation* reflects how many jobs are co-located on the
+> machine; we expect a positive but slow and weak relation, because allocated memory persists after
+> computation ends. *Cache misses per kilo-instruction* (`mkpi`) capture CPU efficiency:
+> memory-bound workloads stall the processor, so the same work registers as higher utilisation.
+> *Disk I/O* has an ambiguous sign: I/O-heavy batch jobs also compute (+), but I/O waits can leave the
+> CPU idle (−). Finally, *lagged CPU* is expected to be the strongest predictor because workloads
+> persist over minutes. Since all inputs are taken at time *t* or earlier to predict *t+1*, both
+> causal and merely co-moving signals are legitimate predictors without leakage.
+
+**Check with real data** (cell in `02_models.ipynb`):
+```python
+future_cpu = df["cpu"].shift(-1)
+print(df.corrwith(future_cpu).sort_values(ascending=False))
+```
+TODO [J]: paste the correlations here + one sentence ("as expected, … strongest; disk weak/negative …").
+Caveat for the report: correlation ≠ causation – the table shows predictive strength; the causal
+story comes from the reasoning above.
 
 ## 3. Features & validation split
 
