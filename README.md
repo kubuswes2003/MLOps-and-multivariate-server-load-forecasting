@@ -22,9 +22,37 @@
 (1-min steps) with columns `cpu, mem, mem_gps, mkpi, net_in, net_out, disk`.
 Both of us build on this; don't change it without telling the other.
 
-**Start here (partner):** follow [Setup](#setup-once-per-teammate) and
-[Get the data](#get-the-data-once-per-teammate), then open `notebooks/02_models.ipynb`
-and start with Q2 + Q4 in `features.py`.
+### ▶️ Start here – Carolina (Person A, Windows)
+
+1. Do the [Setup](#setup-once-per-teammate) (Windows commands).
+2. Move the downloaded archive to `data\machine_usage.tar.gz`, then create the machine file:
+   ```bat
+   python scripts\extract_machine.py --machine-id m_1932
+   ```
+   → creates `data\m_1932.csv` (a few MB). **Send this file to Jakub** (WhatsApp / Drive).
+3. Open your notebook (Spyder can't run `.ipynb`, use Jupyter):
+   ```bat
+   jupyter notebook notebooks\01_eda.ipynb
+   ```
+4. Run cell 1 — it loads the already-cleaned data. Then:
+   - **Q1** – `df.describe().T`; define target = `cpu`, horizon = 1 step (1 min),
+     raw sampling ≈ 10 s → resampled to 1 min; explain why random shuffling leaks the future.
+   - **Q3** – plot every variable over time; look for daily cycles, CPU saturation near 100 %,
+     gaps (NaN), abnormal periods. Save figures to `figures\`.
+5. **Q6 – `split.py` is urgent:** Jakub needs the chronological split to train models.
+
+### ▶️ Start here – Jakub (Person B, macOS)
+
+1. Do the [Setup](#setup-once-per-teammate). Put Carolina's file at `data/m_1932.csv`.
+2. Write code that doesn't need data yet: **Q4** `features.py` → **Q5** `models.py` →
+   **Q9** `metrics.py` (test on a small fake DataFrame). **Q2** text in `02_models.ipynb`.
+
+### 📦 Data – why it's not on GitHub
+
+`data/` is git-ignored: GitHub rejects files > 100 MB (the archive is 1.7 GB) and git keeps
+every committed file forever. The repo stores the *recipe* (download link + extraction
+script); each of us has the data locally. Cleaning is done in code by `load_machine()`,
+so nobody edits data files by hand.
 
 **Git routine:** `git pull` → work → `git add .` → `git commit -m "..."` → `git push`.
 Never commit anything from `data/` (it's ignored automatically).
@@ -61,13 +89,36 @@ file `machine_usage.csv` (~4000 machines, 8 days).
 
 ## Setup (once per teammate)
 
+**macOS / Linux**
+
 ```bash
 git clone https://github.com/kubuswes2003/MLOps-and-multivariate-server-load-forecasting.git
 cd MLOps-and-multivariate-server-load-forecasting
-python3 -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 pip install -e .
 ```
+
+**Windows (cmd)** — type one line at a time; use `cd /d` to switch drives (e.g. to `E:`)
+
+```bat
+cd /d "E:\Universidad\PS M2 SAAS"
+git clone https://github.com/kubuswes2003/MLOps-and-multivariate-server-load-forecasting.git
+cd MLOps-and-multivariate-server-load-forecasting
+python -m venv .venv
+.venv\Scripts\activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+pip install -e .
+```
+
+The pip upgrade is required: old pip versions fail on `pip install -e .`
+Check it works: `python -c "from server_load.config import CONFIG; print(CONFIG.machine_csv)"`.
+
+First time only, set your git identity:
+`git config --global user.name "Your Name"` and `git config --global user.email "you@example.com"`.
 
 ## Get the data (once per teammate)
 
