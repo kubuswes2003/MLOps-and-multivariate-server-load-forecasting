@@ -2,7 +2,7 @@
 
 ## 👥 Work division
 
-| Phase | **Person A – Jakub** (data & monitoring) | **Person B – Partner** (models) |
+| Phase | **Person A – Carolina** (data & monitoring) | **Person B – Jakub** (models) |
 |---|---|---|
 | **A–B** Data & EDA | Q1 descriptive stats, target/horizon/sampling · Q3 time-series plots | Q2 choose ≥5 variables + justify · Q4 lag features |
 | **C** Baselines | Q6 chronological split (`split.py`) | Q5 persistence + Ridge, derive objective (`models.py`) |
@@ -12,7 +12,7 @@
 
 **Who owns what**
 
-| | Person A – Jakub | Person B – Partner |
+| | Person A – Carolina | Person B – Jakub |
 |---|---|---|
 | Notebook | `notebooks/01_eda.ipynb` | `notebooks/02_models.ipynb` |
 | Code in `src/server_load/` | `data.py`, `split.py`, `drift.py` | `features.py`, `models.py`, `metrics.py` |
